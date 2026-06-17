@@ -1,0 +1,288 @@
+/* Figma-like dark studio chrome wrapping the Three.js viewer.
+   The viewer engine (src/main.js) still drives the control elements by id/class,
+   so the hooks it toggles (.tool/.active/.disabled, #history .h, .label, …) are
+   styled here alongside the new layout. */
+:root {
+  color-scheme: dark;
+  --chrome: #1e1e1e;
+  --chrome-2: #2a2a2a;
+  --border: #383838;
+  --text: #e9e9ea;
+  --muted: #8b8d92;
+  --accent: #0d99ff;
+  --accent-dim: #0d99ff22;
+  --good: #7ee08a;
+  --warn: #ffd479;
+  --panel-w-l: 244px;
+  --panel-w-r: 256px;
+  --topbar-h: 48px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden;
+  font: 12px/1.45 "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { background: #141414; color: var(--text); }
+#root { position: fixed; inset: 0; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+
+/* ---- canvas (engine appends its <canvas> into #app) ---- */
+#app { position: fixed; inset: 0; z-index: 0; background: #1b1d21; }
+canvas { display: block; }
+#labels, #overlays { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+/* ---- top bar ---- */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h); z-index: 30;
+  display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  background: var(--chrome); border-bottom: 1px solid var(--border);
+}
+.tb-logo { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center;
+  background: linear-gradient(135deg, #0d99ff, #7b61ff); color: #fff; font-weight: 800; font-size: 13px; }
+.tb-title { font-weight: 600; font-size: 13px; }
+.tb-sub { color: var(--muted); font-size: 11px; }
+.tb-chip { font-size: 10px; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 1px 7px; }
+.tb-spacer { flex: 1; }
+.tb-zoom { color: var(--muted); font-size: 11px; min-width: 40px; text-align: right;
+  font-variant-numeric: tabular-nums; }
+#render-server.tb-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 6px;
+  padding: 6px 14px; font-size: 12px; font-weight: 500; cursor: pointer; user-select: none;
+}
+#render-server.tb-btn:hover { background: #2aa5ff; }
+
+/* ---- side panels ---- */
+.panel { position: fixed; top: var(--topbar-h); bottom: 0; z-index: 20;
+  background: var(--chrome); overflow-y: auto; overflow-x: hidden; }
+.panel.left { left: 0; width: var(--panel-w-l); border-right: 1px solid var(--border); }
+.panel.right { right: 0; width: var(--panel-w-r); border-left: 1px solid var(--border); }
+.panel::-webkit-scrollbar { width: 9px; }
+.panel::-webkit-scrollbar-thumb { background: #00000040; border-radius: 6px; }
+
+.section { padding: 11px 12px; border-bottom: 1px solid var(--border); }
+.section-h { display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 600; letter-spacing: .03em; color: var(--text); margin-bottom: 9px; }
+.section-h .add { color: var(--muted); cursor: default; font-size: 14px; line-height: 1; }
+.tabs { display: flex; gap: 14px; padding: 0 12px; height: 38px; align-items: center;
+  border-bottom: 1px solid var(--border); }
+.tabs .tab { font-size: 12px; color: var(--muted); cursor: pointer; padding: 9px 0; }
+.tabs .tab.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* ---- toggles ---- */
+.toggle { display: flex; align-items: center; gap: 9px; padding: 4px 0; cursor: pointer; font-size: 12px; }
+.toggle input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; margin: 0; }
+.toggle .h { color: var(--muted); font-size: 10px; }
+
+/* ---- property rows (sliders) ---- */
+.prop { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+.prop .k { width: 80px; color: var(--muted); flex-shrink: 0; }
+.prop input[type="range"] { flex: 1; accent-color: var(--accent); height: 3px; cursor: pointer; min-width: 0; }
+.prop .v { min-width: 44px; text-align: right; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* ---- NumField (§5.1): typed + scrubbed numeric input ---- */
+.numfield .k.scrub { cursor: ew-resize; user-select: none; }
+.numfield .numinput { flex: 1; min-width: 0; background: var(--chrome-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 5px; padding: 4px 7px; font-size: 11px;
+  font-variant-numeric: tabular-nums; text-align: right; }
+.numfield .numinput:focus { outline: none; border-color: var(--accent); }
+
+/* ---- segmented controls (#floor-filter / #view-mode) ---- */
+.seg { display: flex; gap: 2px; background: #00000033; border: 1px solid var(--border);
+  border-radius: 7px; padding: 2px; }
+.seg .tool { flex: 1; text-align: center; padding: 5px 6px; border-radius: 5px; font-size: 11px;
+  color: var(--muted); cursor: pointer; user-select: none; white-space: nowrap; }
+.seg .tool:hover:not(.active) { background: #ffffff0d; color: var(--text); }
+.seg .tool.active { background: var(--accent); color: #fff; }
+
+/* ---- mode bar (#mode-bar): the 8 domain modes in the top-bar center ---- */
+.modebar { flex: 0 1 auto; }
+.modebar .tool { position: relative; padding: 5px 11px; }
+.modebar .tool .modekey { display: none; position: absolute; top: -7px; right: 1px;
+  font-size: 9px; font-weight: 600; color: var(--muted); background: var(--chrome-2);
+  border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; line-height: 13px; }
+.modebar .tool:hover .modekey { display: inline-block; }
+.modebar .tool.active .modekey { color: #fff; }
+
+/* ---- buttons (generic .tool used for export/undo/etc.) ---- */
+.btns { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.btns .tool { flex: 1; min-width: 0; text-align: center; padding: 7px 6px; border-radius: 6px;
+  background: var(--chrome-2); border: 1px solid var(--border); color: var(--text); font-size: 11px;
+  cursor: pointer; user-select: none; white-space: nowrap; }
+.btns .tool:hover { background: #343434; }
+.btns .tool.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.disabled, .tool.disabled { opacity: .38; pointer-events: none; }
+
+/* ---- align/distribute bar (multi-select control points, Figma-style) ---- */
+.align-bar { display: flex; align-items: center; gap: 1px; margin-top: 8px; }
+.align-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: 5px; background: none; border: none; color: var(--muted);
+  cursor: pointer; user-select: none; }
+.align-btn:hover { background: var(--chrome-2); color: var(--text); }
+.align-btn:active { background: var(--accent); color: #fff; }
+.align-sep { width: 1px; align-self: stretch; background: var(--border); margin: 3px 5px; }
+
+/* ---- layers list ---- */
+.layers { display: flex; flex-direction: column; gap: 1px; }
+.layer { display: flex; align-items: center; gap: 9px; padding: 5px 7px; border-radius: 5px;
+  font-size: 12px; color: var(--text); cursor: default; }
+.layer:hover { background: #ffffff0d; }
+.layer.dim { color: var(--muted); }
+.layer .ico { width: 14px; height: 14px; color: var(--muted); display: grid; place-items: center; flex-shrink: 0; }
+.layer .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; border: 1px solid #ffffff20; }
+.layer .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer-group { font-size: 10px; color: var(--muted); letter-spacing: .04em; margin: 8px 2px 3px; }
+.layer-group.lg-head { display: flex; align-items: center; justify-content: space-between; }
+.lg-head .lg-toggle { cursor: pointer; user-select: none; text-transform: uppercase; }
+.lg-head .lg-toggle:hover { color: var(--text); }
+.lg-head .lg-right { display: flex; align-items: center; gap: 7px; }
+.lg-head .lg-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.lg-head .lg-eye { cursor: pointer; opacity: .55; font-size: 11px; line-height: 1; }
+.lg-head .lg-eye:hover { opacity: 1; }
+.lg-head .lg-eye.off { opacity: .9; }
+.layer { cursor: pointer; }
+
+/* ---- history ---- */
+#history { max-height: 190px; overflow-y: auto; margin-top: 4px; display: flex; flex-direction: column; gap: 1px; }
+#history .h-state { font-size: 10px; color: var(--muted); padding: 2px 7px 5px; }
+#history .h-state b { color: var(--accent); }
+#history .h { padding: 4px 7px; border-radius: 5px; cursor: pointer; color: var(--muted); font-size: 11px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#history .h:hover { background: #ffffff0d; }
+#history .h.cur { background: var(--accent-dim); color: var(--text); }
+#history .h.future { opacity: .42; }
+#history .h .t { color: var(--muted); font-size: 10px; margin-left: 4px; }
+#saved { font-size: 10px; color: var(--good); margin-top: 7px; min-height: 12px; }
+
+/* ---- A/B scenario walkthrough (engine renders into #scenario) ---- */
+.scenario { display: flex; flex-direction: column; gap: 8px; }
+.scn-readout { font-size: 11px; color: var(--text); line-height: 1.4;
+  background: var(--chrome-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+.scn-readout b { color: var(--accent); font-weight: 700; }
+.scn-track { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
+.scn-chip { display: flex; align-items: center; gap: 7px; padding: 4px 7px; border-radius: 5px;
+  cursor: pointer; color: var(--muted); font-size: 11px; user-select: none; }
+.scn-chip:hover { background: #ffffff0d; }
+.scn-chip.on { background: var(--accent-dim); color: var(--text); }
+.scn-tag { flex: 0 0 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; border-radius: 4px; background: var(--border); color: var(--text); }
+.scn-chip.on .scn-tag { background: var(--accent); color: #fff; }
+.scn-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scn-del { color: var(--muted); font-size: 11px; opacity: 0; cursor: pointer; }
+.scn-chip:hover .scn-del { opacity: .7; }
+.scn-del:hover { color: var(--warn); opacity: 1; }
+.scn-del.arm { opacity: 1; color: var(--warn); font-size: 10px; font-weight: 700; }
+.scn-rename { flex: 1; min-width: 0; background: var(--chrome); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 4px; padding: 1px 5px; font-size: 11px; outline: none; }
+.scn-controls { display: flex; gap: 6px; }
+.scn-btn { flex: 1; padding: 5px 6px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--chrome-2); color: var(--text); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.scn-btn:hover:not(:disabled) { border-color: var(--accent); }
+.scn-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.scn-btn:disabled { opacity: .4; cursor: default; }
+.scn-sync { display: flex; align-items: center; gap: 7px; margin: 8px 0 2px; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--chrome-2); cursor: pointer;
+  font-size: 11px; color: var(--text); user-select: none; }
+.scn-sync input { accent-color: var(--accent); cursor: pointer; }
+.scn-sync.on { border-color: var(--accent); background: var(--accent-dim); }
+.scn-help { font-size: 10px; color: var(--muted); line-height: 1.5; }
+.scn-help b { color: var(--text); }
+
+/* ---- contextual selection sub-panels (engine shows/hides via style.display) ---- */
+.subpanel { margin-top: 2px; }
+/* engine hides a subpanel when it doesn't belong to the active mode (data-mode).
+   !important beats the inline style.display the selection-driven show/hide sets. */
+.subpanel.mode-hidden { display: none !important; }
+#sel-count, #door-count, #win-count, #roof-count, #stair-count, #furn-count { font-size: 11px; color: var(--warn); }
+.furn-sel { background: var(--chrome-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 6px; font-size: 11px; min-width: 0; }
+
+/* ---- style cards (door styles; reused by moulding/cabinet fronts later) ---- */
+.style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; }
+.style-card { display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer;
+  background: var(--chrome-2); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 2px 4px; transition: border-color .12s, color .12s; }
+.style-card:hover { border-color: var(--accent); color: var(--text); }
+.style-card.active { border-color: var(--accent); color: var(--text); background: var(--accent-dim); }
+.style-card .door-glyph { color: inherit; }
+.style-lbl { font-size: 9px; line-height: 1; text-align: center; }
+
+/* ---- bottom floating toolbar ---- */
+.toolbar-wrap { position: fixed; bottom: 18px; z-index: 30;
+  left: calc(var(--panel-w-l) + (100vw - var(--panel-w-l) - var(--panel-w-r)) / 2);
+  transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none; }
+#toolinfo { pointer-events: none; color: var(--muted); font-size: 11px; text-align: center; max-width: 560px;
+  background: #1e1e1ecc; border: 1px solid var(--border); border-radius: 7px; padding: 4px 10px;
+  backdrop-filter: blur(6px); min-height: 14px; }
+#toolinfo b { color: var(--text); }
+#toolinfo .reading { font-size: 14px; color: var(--warn); }
+.toolbar { pointer-events: auto; display: flex; gap: 3px; padding: 6px; border-radius: 13px;
+  background: var(--chrome); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.toolbar .tool { width: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 4px; border-radius: 9px; color: var(--muted); font-size: 10px; cursor: pointer; user-select: none; }
+.toolbar .tool:hover:not(.active) { background: #ffffff12; color: var(--text); }
+.toolbar .tool.active { background: var(--accent); color: #fff; }
+.toolbar .tool .ti { font-size: 17px; line-height: 1; }
+/* engine hides a tool button when it doesn't belong to the active mode (data-modes) */
+.toolbar .tool[hidden] { display: none; }
+/* keyboard shortcut chip on each tool button (§5.5) */
+.toolbar .tool .kbd { position: absolute; top: 3px; right: 4px; font-size: 8px; font-weight: 600;
+  color: var(--muted); border: 1px solid var(--border); border-radius: 3px; padding: 0 2px; line-height: 11px; }
+.toolbar .tool { position: relative; }
+.toolbar .tool.active .kbd { color: #fff; border-color: #ffffff55; }
+
+/* ---- boot status (engine #status) ---- */
+#status { position: fixed; top: 50%; z-index: 5; text-align: center; color: #c7c9cd;
+  left: calc(var(--panel-w-l) + (100vw - var(--panel-w-l) - var(--panel-w-r)) / 2);
+  transform: translate(-50%, -50%); }
+#status .bar { width: 220px; height: 4px; margin: 10px auto 0; border-radius: 3px; background: #2c2f35; overflow: hidden; }
+#status .bar > i { display: block; height: 100%; width: 30%; background: var(--accent); border-radius: 3px; transition: width .2s; }
+#err { color: #ff8b8b; max-width: 360px; font-size: 12px; }
+
+/* ---- canvas overlays the engine draws (room labels, measure, dims) ---- */
+.label { position: absolute; transform: translate(-50%, -50%); padding: 2px 6px; border-radius: 4px;
+  background: rgba(20,22,26,.72); color: #f2efe9; white-space: nowrap; font-size: 11px; letter-spacing: .2px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6); will-change: left, top; }
+.label.dim { opacity: .45; font-size: 10px; }
+/* Labels mode (Phase 7): selected label gets the selection accent; the host opts
+   the divs into pointer events so they're clickable/draggable. */
+.label.sel { outline: 2px solid #ff8c42; box-shadow: 0 0 0 2px rgba(255,140,66,.35), 0 1px 6px rgba(0,0,0,.5); }
+#labels.labels-live .label { pointer-events: auto; cursor: grab; }
+#labels.labels-live.dragging .label { cursor: grabbing; }
+.mlabel { position: absolute; transform: translate(-50%, -50%); padding: 2px 7px; border-radius: 10px;
+  background: var(--warn); color: #221b00; font-size: 12px; font-weight: 600; white-space: nowrap;
+  pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.dimlabel { position: absolute; transform: translate(-50%, -50%); padding: 1px 5px; border-radius: 3px;
+  background: var(--accent); color: #06122b; font-size: 11px; font-weight: 600; white-space: nowrap;
+  pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+/* pinned (double-clicked node): labels become click-to-edit targets */
+.dimlabel.pinned { pointer-events: auto; cursor: text; }
+.dimlabel.pinned:hover { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 1px 3px rgba(0,0,0,.5); }
+.dimlabel .dimedit { border: none; outline: none; background: transparent; color: inherit;
+  font: inherit; text-align: center; padding: 0; }
+body.measuring canvas { cursor: crosshair; }
+body.editing canvas { cursor: default; }
+body.orbiting canvas { cursor: grabbing; }
+body.walking canvas { cursor: crosshair; }
+
+/* ---- Blender render modal (engine builds it in JS, appended to body) ---- */
+#render-modal { position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center;
+  background: rgba(8,9,12,.72); backdrop-filter: blur(3px); }
+#render-modal .rm-box { background: #1f2228; border: 1px solid var(--border); border-radius: 10px;
+  max-width: 92vw; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 12px 48px rgba(0,0,0,.6); overflow: hidden; }
+#render-modal .rm-head { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px;
+  border-bottom: 1px solid var(--border); font-size: 13px; }
+#render-modal .rm-x { cursor: pointer; color: var(--muted); padding: 0 4px; }
+#render-modal .rm-x:hover { color: #fff; }
+#render-modal .rm-body { padding: 16px; min-width: 340px; min-height: 90px; display: flex; align-items: center; justify-content: center; }
+#render-modal .rm-status { color: #cfd2d6; font-size: 12px; white-space: pre-wrap; text-align: center; max-width: 520px; line-height: 1.5; }
+#render-modal .rm-status.err { color: #ff9b9b; text-align: left; font-family: ui-monospace, monospace; font-size: 11px; }
+#render-modal .rm-img { display: none; max-width: 86vw; max-height: 74vh; border-radius: 4px; }
+#render-modal .rm-foot { padding: 8px 12px; border-top: 1px solid var(--border); text-align: right; }
+#render-modal .rm-dl { display: none; text-decoration: none; }
+#render-modal .rm-prog { width: 420px; max-width: 80vw; }
+#render-modal .rm-label { color: var(--text); font-size: 13px; margin-bottom: 10px; text-align: center; min-height: 16px; }
+#render-modal .rm-bar { height: 8px; border-radius: 5px; background: #2c2f35; overflow: hidden; }
+#render-modal .rm-bar > i { display: block; height: 100%; width: 0%; border-radius: 5px;
+  background: linear-gradient(90deg, #0d99ff, #7ee08a); transition: width .35s ease; }
+#render-modal .rm-pct { margin-top: 8px; text-align: center; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
